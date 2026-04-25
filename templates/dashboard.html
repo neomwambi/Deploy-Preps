@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MobiLife Deployment Assistant</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body class="app-shell is-sidebar-collapsed" data-page="{{ page }}">
+  <aside class="sidebar" id="app-sidebar" aria-label="Application">
+    <div class="sidebar-toolbar">
+      <button type="button" id="sidebar-toggle" class="sidebar-toggle-btn" aria-expanded="false" aria-controls="sidebar-body" title="Expand sidebar">
+        <span class="visually-hidden" id="sidebar-toggle-label">Expand sidebar</span>
+        <span class="sidebar-toggle-glyph" aria-hidden="true">&gt;&gt;</span>
+      </button>
+    </div>
+    <div id="sidebar-body" class="sidebar-body">
+      <div class="sidebar-brand">
+        <img src="{{ url_for('static', filename='branding/mobilife-logo.png') }}" alt="MobiLife" class="sidebar-logo" width="160" height="40" />
+        <div class="sidebar-brand-text">
+          <span class="sidebar-brand-name">MobiLife</span>
+          <span class="sidebar-brand-sub">Deployment assistant</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav" aria-label="Primary navigation">
+        <a href="{{ url_for('home') }}" class="nav-item {% if page == 'home' %}is-active{% endif %}">Home</a>
+        <a href="{{ url_for('changes') }}" class="nav-item {% if page == 'changes' %}is-active{% endif %}">Preview changes</a>
+        <a href="{{ url_for('mail_page') }}" class="nav-item {% if page == 'email' %}is-active{% endif %}">Preview email &amp; send</a>
+        <a href="{{ url_for('deploy_dws') }}" class="nav-item {% if page == 'deploy_dws' %}is-active{% endif %}">Deploy to DWs</a>
+      </nav>
+    </div>
+  </aside>
+
+  <div class="main-column">
+    {% if page != 'home' %}
+    <header class="main-topbar">
+      <span class="topbar-spacer"></span>
+      <span class="topbar-label">Deploy</span>
+    </header>
+    {% endif %}
+
+    <main class="main-panel">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-wrap">
+            {% for category, message in messages %}
+              <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% if error %}
+        <pre class="error-block">{{ error }}</pre>
+      {% endif %}
+
+      {% if page == 'home' %}
+        <section class="hero">
+          <div class="hero-badge-wrap">
+            <img src="{{ url_for('static', filename='branding/mobilife-bird.png') }}" alt="MobiLife emblem" class="hero-badge" />
+          </div>
+          <h1 class="hero-title">MobiLife Deployment Assistant</h1>
+          <p class="hero-sub">Get ready for the next deploy. Compare environments, review the latest updates, and keep everyone in the loop with a single click.</p>
+        </section>
+
+        <nav class="home-quicklinks" aria-label="Jump to workspace">
+          <a class="home-quicklink" href="{{ url_for('changes') }}">
+            <span class="home-quicklink-title">Preview changes</span>
+            <span class="home-quicklink-desc">See exactly what's changing in the next deploy.</span>
+          </a>
+          <a class="home-quicklink" href="{{ url_for('mail_page') }}">
+            <span class="home-quicklink-title">Preview email &amp; send</span>
+            <span class="home-quicklink-desc">Review the final email draft before notifying the team.</span>
+          </a>
+        </nav>
+
+        <section class="guide">
+          <h2 class="guide-heading guide-heading-plain">How to use this tool</h2>
+          <div class="guide-prose">
+            <p>
+              <strong>Review the updates:</strong>
+              <a href="{{ url_for('changes') }}">Click here</a>
+              to see a clear, side-by-side comparison of what is changing in the next deploy. We've filtered out the noise so you only see what's new or different.
+            </p>
+            <p>
+              <strong>Draft &amp; send your report:</strong>
+              <a href="{{ url_for('mail_page') }}">Open the email workspace</a>
+              to generate a polished email summarising the updates. You can double-check how it looks, then send it off to the team when you're ready.
+            </p>
+            <p class="guide-reminder">
+              <strong>Quick reminder:</strong>
+              Make sure your VPN is turned on so the tool can safely fetch the latest system information!
+            </p>
+          </div>
+        </section>
+      {% endif %}
+
+      {% if page == 'changes' %}
+        <header class="panel-header">
+          <h1 class="panel-header-title">Deployment Changes</h1>
+          <p class="panel-header-desc">Comparing the Preprod and Production environments to review exactly what will change in the next deploy.</p>
+        </header>
+        <div class="panel-actions">
+          <form method="post" action="{{ url_for('changes') }}">
+            <button type="submit" class="btn btn-primary">Scan for Updates</button>
+          </form>
+        </div>
+        {% if result_meta %}
+          <p class="meta">Scan complete. Comparing <strong>{{ "{:,}".format(result_meta.preprod_rows) }}</strong> Preprod items against
+            <strong>{{ "{:,}".format(result_meta.prod_rows) }}</strong> Production items.</p>
+        {% endif %}
+        {% if tables_html %}
+          <section class="preview">
+            {{ tables_html | safe }}
+          </section>
+        {% elif not error %}
+          <p class="hint">Choose <strong>Scan for Updates</strong> to compare both environments and show what will change.</p>
+        {% endif %}
+      {% endif %}
+
+      {% if page == 'email' %}
+        <header class="panel-header">
+          <h1 class="panel-header-title">Draft &amp; Send Report</h1>
+          <p class="panel-header-desc">Review exactly how the update report will look before sending it to the team.</p>
+        </header>
+        <div class="panel-actions panel-actions-split">
+          <form method="post" action="{{ url_for('mail_page') }}">
+            <input type="hidden" name="action" value="preview" />
+            <button type="submit" class="btn btn-primary">Load Preview</button>
+          </form>
+          <form method="post" action="{{ url_for('mail_page') }}" onsubmit="return confirm('Send this report to the team using the addresses configured for this tool?');">
+            <input type="hidden" name="action" value="send" />
+            <button type="submit" class="btn btn-secondary">Send to Team</button>
+          </form>
+        </div>
+        {% if result_meta %}
+          <p class="meta">Snapshot based on <strong>{{ "{:,}".format(result_meta.preprod_rows) }}</strong> preprod rows and
+            <strong>{{ "{:,}".format(result_meta.prod_rows) }}</strong> production rows.</p>
+        {% endif %}
+        {% if email_preview_html %}
+          <section class="email-preview-panel" aria-labelledby="email-preview-heading">
+            <h2 class="panel-title" id="email-preview-heading">Report preview</h2>
+            <p class="panel-note">This is how the report will look when it reaches your recipients (including images and signature).</p>
+            <iframe class="email-iframe" title="Report preview" srcdoc="{{ email_preview_html | e }}"></iframe>
+          </section>
+        {% elif not error %}
+          <p class="hint">Click <strong>Load Preview</strong> to see the formatted message below. Once you are happy with it, click <strong>Send to Team</strong>.</p>
+        {% endif %}
+      {% endif %}
+
+      {% if page == 'deploy_dws' %}
+        <section class="dws-placeholder" aria-labelledby="dws-placeholder-heading">
+          <h1 class="dws-placeholder-title" id="dws-placeholder-heading">Coming Soon</h1>
+          <p class="dws-placeholder-note">Page currently under construction...</p>
+        </section>
+      {% endif %}
+    </main>
+  </div>
+  <script>
+    (function () {
+      try {
+        localStorage.removeItem("mlDeploySidebarCollapsed");
+      } catch (e) {}
+      var shell = document.querySelector(".app-shell");
+      var btn = document.getElementById("sidebar-toggle");
+      var label = document.getElementById("sidebar-toggle-label");
+      var glyph = btn && btn.querySelector(".sidebar-toggle-glyph");
+      function setCollapsed(collapsed) {
+        shell.classList.toggle("is-sidebar-collapsed", collapsed);
+        if (!btn) return;
+        btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+        btn.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
+        if (label) label.textContent = collapsed ? "Expand sidebar" : "Collapse sidebar";
+        if (glyph) glyph.textContent = collapsed ? ">>" : "<<";
+      }
+      if (btn) {
+        btn.addEventListener("click", function () {
+          setCollapsed(!shell.classList.contains("is-sidebar-collapsed"));
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
