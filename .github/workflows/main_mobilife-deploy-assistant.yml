@@ -4,6 +4,12 @@
 
 name: Build and deploy Python app to Azure Web App - mobilife-deploy-assistant
 
+# Only one deploy to this App Service at a time (avoids Azure OneDeploy 409 Conflict
+# when two workflows would run in parallel).
+concurrency:
+  group: azure-webapp-mobilife-deploy-assistant
+  cancel-in-progress: true
+
 on:
   push:
     branches:
