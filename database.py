@@ -88,10 +88,24 @@ def _read_frame(conn: MySQLConnection, sql: str) -> pd.DataFrame:
     return pd.read_sql(sql, conn)
 
 
+def _db_port(env_name: str) -> int:
+    """
+    MySQL port from env. If unset, non-numeric, or still an unresolved Key Vault
+    reference string, default to 3306.
+    """
+    raw = (os.environ.get(env_name) or "3306").strip()
+    if not raw or raw.startswith("@Microsoft.KeyVault"):
+        return 3306
+    try:
+        return int(raw)
+    except ValueError:
+        return 3306
+
+
 def fetch_preprod_dataframe() -> pd.DataFrame:
     conn = _connect(
         os.environ["PREPROD_DB_HOST"],
-        int(os.environ.get("PREPROD_DB_PORT", "3306")),
+        _db_port("PREPROD_DB_PORT"),
         os.environ["PREPROD_DB_USER"],
         os.environ["PREPROD_DB_PASSWORD"],
     )
@@ -104,7 +118,7 @@ def fetch_preprod_dataframe() -> pd.DataFrame:
 def fetch_prod_dataframe() -> pd.DataFrame:
     conn = _connect(
         os.environ["PROD_DB_HOST"],
-        int(os.environ.get("PROD_DB_PORT", "3306")),
+        _db_port("PROD_DB_PORT"),
         os.environ["PROD_DB_USER"],
         os.environ["PROD_DB_PASSWORD"],
     )
