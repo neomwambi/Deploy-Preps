@@ -12,6 +12,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _require_plain_env(key: str) -> str:
+    """
+    Return an app setting value. Key Vault references must be resolved by Azure
+    before the process starts; if the literal @Microsoft.KeyVault(...) string is
+    still present, MySQL would treat it as a hostname and fail with a cryptic error.
+    """
+    if key not in os.environ:
+        raise KeyError(key)
+    v = os.environ[key].strip()
+    if v.startswith("@Microsoft.KeyVault"):
+        raise RuntimeError(
+            f"App setting {key!r} is still an unresolved Key Vault reference (Azure did not inject the secret).\n\n"
+            "Fix: Web App → Identity → enable System-assigned managed identity → Save. "
+            "Key vault deployprep → Access control (IAM) → Add role assignment → "
+            "role “Key Vault Secrets User” → assign to this Web App’s managed identity → "
+            "Restart the Web App.\n\n"
+            f"Workaround: set {key!r} to the real hostname, user, or password as a plain Application setting (not a @Microsoft.KeyVault reference)."
+        )
+    return v
+
+
 PREPROD_SQL = """
 SELECT
     CONCAT(
@@ -104,10 +126,10 @@ def _db_port(env_name: str) -> int:
 
 def fetch_preprod_dataframe() -> pd.DataFrame:
     conn = _connect(
-        os.environ["PREPROD_DB_HOST"],
+        _require_plain_env("PREPROD_DB_HOST"),
         _db_port("PREPROD_DB_PORT"),
-        os.environ["PREPROD_DB_USER"],
-        os.environ["PREPROD_DB_PASSWORD"],
+        _require_plain_env("PREPROD_DB_USER"),
+        _require_plain_env("PREPROD_DB_PASSWORD"),
     )
     try:
         return _read_frame(conn, PREPROD_SQL)
@@ -117,10 +139,10 @@ def fetch_preprod_dataframe() -> pd.DataFrame:
 
 def fetch_prod_dataframe() -> pd.DataFrame:
     conn = _connect(
-        os.environ["PROD_DB_HOST"],
+        _require_plain_env("PROD_DB_HOST"),
         _db_port("PROD_DB_PORT"),
-        os.environ["PROD_DB_USER"],
-        os.environ["PROD_DB_PASSWORD"],
+        _require_plain_env("PROD_DB_USER"),
+        _require_plain_env("PROD_DB_PASSWORD"),
     )
     try:
         return _read_frame(conn, PROD_SQL)
