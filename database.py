@@ -231,7 +231,10 @@ def lookup_login_user(username: str) -> dict[str, Any] | None:
     sql = """
         SELECT `Id`, `UserName`, `PasswordHash`, `Access`
         FROM `xcl_deploypreps_users`
-        WHERE `UserName` = %s
+        WHERE LOWER(TRIM(`UserName`)) = LOWER(TRIM(%s))
+          AND `PasswordHash` IS NOT NULL
+          AND TRIM(`PasswordHash`) <> ''
+        ORDER BY `Id` DESC
         LIMIT 1
     """
     conn = _connect_oasis_preprod()
