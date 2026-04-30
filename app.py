@@ -251,7 +251,8 @@ def login():
         return render_template("auth.html", page="login"), 400
 
     user = lookup_login_user(username)
-    if not user or not check_password_hash(user.get("PasswordHash") or "", password):
+    stored_hash = (user.get("PasswordHash") or "").strip() if user else ""
+    if not user or not stored_hash or not check_password_hash(stored_hash, password):
         flash("Invalid username or password.", "error")
         return render_template("auth.html", page="login"), 401
 

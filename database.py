@@ -229,9 +229,12 @@ def complete_signup(
 
 def lookup_login_user(username: str) -> dict[str, Any] | None:
     sql = """
-        SELECT `Id`, `UserName`, `PasswordHash`, `Access`
+        SELECT `Id`, `UserName`, `EmailAddress`, `PasswordHash`, `Access`
         FROM `xcl_deploypreps_users`
-        WHERE LOWER(TRIM(`UserName`)) = LOWER(TRIM(%s))
+        WHERE (
+                LOWER(TRIM(`UserName`)) = LOWER(TRIM(%s))
+             OR LOWER(TRIM(`EmailAddress`)) = LOWER(TRIM(%s))
+        )
           AND `PasswordHash` IS NOT NULL
           AND TRIM(`PasswordHash`) <> ''
         ORDER BY `Id` DESC
@@ -240,7 +243,7 @@ def lookup_login_user(username: str) -> dict[str, Any] | None:
     conn = _connect_oasis_preprod()
     try:
         cur = conn.cursor(dictionary=True)
-        cur.execute(sql, (username,))
+        cur.execute(sql, (username, username))
         row = cur.fetchone()
         return dict(row) if row else None
     finally:
