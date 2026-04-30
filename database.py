@@ -153,3 +153,92 @@ def fetch_prod_dataframe() -> pd.DataFrame:
 def fetch_both() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return (preprod_df, prod_df)."""
     return fetch_preprod_dataframe(), fetch_prod_dataframe()
+
+
+def _connect_oasis_preprod() -> MySQLConnection:
+    """Connection for authentication table routing (oasis_preprod)."""
+    return _connect(
+        _require_plain_env("PREPROD_DB_HOST"),
+        _db_port("PREPROD_DB_PORT"),
+        _require_plain_env("PREPROD_DB_USER"),
+        _require_plain_env("PREPROD_DB_PASSWORD"),
+        database="oasis_preprod",
+    )
+
+
+def lookup_signup_candidate(email: str) -> dict[str, Any] | None:
+    """
+    Return pre-approved user row for signup only if FirstName is NULL.
+    """
+    sql = """
+        SELECT `Id`, `EmailAddress`
+        FROM `xcl_deploypreps_users`
+        WHERE `EmailAddress` = %s
+          AND `FirstName` IS NULL
+        LIMIT 1
+    """
+    conn = _connect_oasis_preprod()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(sql, (email,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def username_exists(username: str) -> bool:
+    sql = "SELECT 1 FROM `xcl_deploypreps_users` WHERE `UserName` = %s LIMIT 1"
+    conn = _connect_oasis_preprod()
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, (username,))
+        return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def complete_signup(
+    email: str,
+    first_name: str,
+    last_name: str,
+    username: str,
+    password_hash: str,
+) -> bool:
+    """
+    Finalize signup only for pre-approved rows (FirstName IS NULL).
+    """
+    sql = """
+        UPDATE `xcl_deploypreps_users`
+        SET `FirstName` = %s,
+            `LastName` = %s,
+            `UserName` = %s,
+            `PasswordHash` = %s
+        WHERE `EmailAddress` = %s
+          AND `FirstName` IS NULL
+    """
+    conn = _connect_oasis_preprod()
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, (first_name, last_name, username, password_hash, email))
+        conn.commit()
+        return cur.rowcount == 1
+    finally:
+        conn.close()
+
+
+def lookup_login_user(username: str) -> dict[str, Any] | None:
+    sql = """
+        SELECT `Id`, `UserName`, `PasswordHash`, `Access`
+        FROM `xcl_deploypreps_users`
+        WHERE `UserName` = %s
+        LIMIT 1
+    """
+    conn = _connect_oasis_preprod()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(sql, (username,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MobiLife Deployment Assistant</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <main class="main-panel" style="max-width:560px;margin:48px auto;">
+    <header class="panel-header">
+      {% if page == 'signup' %}
+      <h1 class="panel-header-title">Create your account</h1>
+      <p class="panel-header-desc">Registration is only available for pre-approved email addresses.</p>
+      {% else %}
+      <h1 class="panel-header-title">Sign in</h1>
+      <p class="panel-header-desc">Use your assigned username and password.</p>
+      {% endif %}
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-wrap">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% if page == 'signup' %}
+    <form method="post" action="{{ url_for('signup') }}" class="guide-prose">
+      <p><label>Email<br /><input type="email" name="email" required style="width:100%;" /></label></p>
+      <p><label>First Name<br /><input type="text" name="first_name" required style="width:100%;" /></label></p>
+      <p><label>Last Name<br /><input type="text" name="last_name" required style="width:100%;" /></label></p>
+      <p><label>Password<br /><input type="password" name="password" required style="width:100%;" /></label></p>
+      <p><label>Confirm Password<br /><input type="password" name="confirm_password" required style="width:100%;" /></label></p>
+      <p><button type="submit" class="btn btn-primary">Sign up</button></p>
+      <p class="hint">Already registered? <a href="{{ url_for('login') }}">Sign in</a>.</p>
+    </form>
+    {% else %}
+    <form method="post" action="{{ url_for('login') }}" class="guide-prose">
+      <p><label>Username<br /><input type="text" name="username" required style="width:100%;" /></label></p>
+      <p><label>Password<br /><input type="password" name="password" required style="width:100%;" /></label></p>
+      <p><button type="submit" class="btn btn-primary">Log in</button></p>
+      <p class="hint">Need an account? <a href="{{ url_for('signup') }}">Sign up</a>.</p>
+    </form>
+    {% endif %}
+  </main>
+</body>
+</html>

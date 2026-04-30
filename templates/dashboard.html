@@ -28,6 +28,14 @@
         <a href="{{ url_for('mail_page') }}" class="nav-item {% if page == 'email' %}is-active{% endif %}">Preview email &amp; send</a>
         <a href="{{ url_for('deploy_dws') }}" class="nav-item {% if page == 'deploy_dws' %}is-active{% endif %}">Deploy to DWs</a>
       </nav>
+      {% if current_user %}
+      <div class="sidebar-user">
+        <p class="sidebar-user-meta">Signed in as <strong>{{ current_user.username }}</strong> ({{ current_user.access }})</p>
+        <form method="post" action="{{ url_for('logout') }}">
+          <button type="submit" class="btn btn-ghost btn-sm">Log out</button>
+        </form>
+      </div>
+      {% endif %}
     </div>
   </aside>
 
@@ -128,10 +136,12 @@
             <input type="hidden" name="action" value="preview" />
             <button type="submit" class="btn btn-primary">Load Preview</button>
           </form>
-          <form method="post" action="{{ url_for('mail_page') }}" onsubmit="return confirm('Send this report to the team using the addresses configured for this tool?');">
-            <input type="hidden" name="action" value="send" />
-            <button type="submit" class="btn btn-secondary">Send to Team</button>
-          </form>
+          {% if current_user and current_user.access == 'Admin' %}
+            <form method="post" action="{{ url_for('mail_page') }}" onsubmit="return confirm('Send this report to the team using the addresses configured for this tool?');">
+              <input type="hidden" name="action" value="send" />
+              <button type="submit" class="btn btn-secondary">Send to Team</button>
+            </form>
+          {% endif %}
         </div>
         {% if result_meta %}
           <p class="meta">Snapshot based on <strong>{{ "{:,}".format(result_meta.preprod_rows) }}</strong> preprod rows and

@@ -176,6 +176,19 @@ body {
   padding-left: 11px;
 }
 
+.sidebar-user {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ml-sidebar-border);
+}
+
+.sidebar-user-meta {
+  margin: 0 0 10px;
+  color: var(--ml-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 /* Main column */
 .main-column {
   flex: 1;
@@ -491,6 +504,15 @@ body {
 
 .btn-secondary:hover {
   filter: brightness(1.08);
+}
+
+.btn-ghost {
+  background: transparent;
+}
+
+.btn-sm {
+  padding: 7px 12px;
+  font-size: 0.82rem;
 }
 
 .meta {
