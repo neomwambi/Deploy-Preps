@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import time
 import traceback
+from datetime import timedelta
 
 from dotenv import load_dotenv
 from flask import Flask, flash, redirect, render_template, request, session, url_for
@@ -24,6 +26,8 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-me")
+SESSION_IDLE_TIMEOUT_SECONDS = 5 * 60
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(seconds=SESSION_IDLE_TIMEOUT_SECONDS)
 
 
 def _is_logged_in() -> bool:
@@ -59,14 +63,25 @@ def _build_username(first_name: str, last_name: str) -> str:
     return f"{first_name}_{last_name[0].upper()}"
 
 
+def _touch_session_activity() -> None:
+    session["last_activity_ts"] = int(time.time())
+
+
 @app.before_request
 def _require_login_for_app_routes():
-    allowed_endpoints = {"login", "signup", "static"}
+    allowed_endpoints = {"login", "signup", "logout", "logout_beacon", "static"}
     endpoint = request.endpoint or ""
     if endpoint in allowed_endpoints or endpoint.startswith("static"):
         return
     if not _is_logged_in():
         return redirect(url_for("login"))
+    last_activity_ts = session.get("last_activity_ts")
+    now = int(time.time())
+    if isinstance(last_activity_ts, (int, float)) and (now - int(last_activity_ts)) > SESSION_IDLE_TIMEOUT_SECONDS:
+        session.clear()
+        flash("Your session has timed out due to inactivity. Please sign in again.", "error")
+        return redirect(url_for("login"))
+    _touch_session_activity()
 
 
 def _run_compare():
@@ -130,6 +145,16 @@ def changes():
 @app.get("/deploy-dws")
 def deploy_dws():
     return render_template("dashboard.html", page="deploy_dws", **_base_view_model())
+
+
+@app.get("/deploy-dws/client")
+def deploy_dws_client():
+    return render_template("dashboard.html", page="deploy_dws_client", **_base_view_model())
+
+
+@app.get("/deploy-dws/internal")
+def deploy_dws_internal():
+    return render_template("dashboard.html", page="deploy_dws_internal", **_base_view_model())
 
 
 @app.route("/mail", methods=["GET", "POST"])
@@ -242,6 +267,8 @@ def login():
     if _is_logged_in():
         return redirect(url_for("home"))
     if request.method == "GET":
+        if request.args.get("timeout") == "1":
+            flash("Your session has timed out due to inactivity. Please sign in again.", "error")
         return render_template("auth.html", page="login")
 
     username = (request.form.get("username") or "").strip()
@@ -259,6 +286,8 @@ def login():
     session["user_id"] = user["Id"]
     session["username"] = user["UserName"]
     session["access"] = user.get("Access") or "User"
+    session.permanent = True
+    _touch_session_activity()
     flash("Logged in successfully.", "success")
     return redirect(url_for("home"))
 
@@ -268,6 +297,12 @@ def logout():
     session.clear()
     flash("You have been logged out.", "success")
     return redirect(url_for("login"))
+
+
+@app.post("/logout-beacon")
+def logout_beacon():
+    session.clear()
+    return ("", 204)
 
 
 if __name__ == "__main__":

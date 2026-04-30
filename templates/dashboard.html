@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MobiLife Deployment Assistant</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='branding/mobilife-bird.png') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
 </head>
 <body class="app-shell is-sidebar-collapsed" data-page="{{ page }}">
@@ -11,7 +12,9 @@
     <div class="sidebar-toolbar">
       <button type="button" id="sidebar-toggle" class="sidebar-toggle-btn" aria-expanded="false" aria-controls="sidebar-body" title="Expand sidebar">
         <span class="visually-hidden" id="sidebar-toggle-label">Expand sidebar</span>
-        <span class="sidebar-toggle-glyph" aria-hidden="true">&gt;&gt;</span>
+        <span class="sidebar-toggle-glyph" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </span>
       </button>
     </div>
     <div id="sidebar-body" class="sidebar-body">
@@ -24,9 +27,11 @@
       </div>
       <nav class="sidebar-nav" aria-label="Primary navigation">
         <a href="{{ url_for('home') }}" class="nav-item {% if page == 'home' %}is-active{% endif %}">Home</a>
-        <a href="{{ url_for('changes') }}" class="nav-item {% if page == 'changes' %}is-active{% endif %}">Preview changes</a>
-        <a href="{{ url_for('mail_page') }}" class="nav-item {% if page == 'email' %}is-active{% endif %}">Preview email &amp; send</a>
-        <a href="{{ url_for('deploy_dws') }}" class="nav-item {% if page == 'deploy_dws' %}is-active{% endif %}">Deploy to DWs</a>
+        <a href="{{ url_for('changes') }}" class="nav-item {% if page == 'changes' %}is-active{% endif %}">Review Updates</a>
+        <a href="{{ url_for('mail_page') }}" class="nav-item {% if page == 'email' %}is-active{% endif %}">Communication</a>
+        <a href="{{ url_for('deploy_dws') }}" class="nav-item {% if page in ['deploy_dws', 'deploy_dws_client', 'deploy_dws_internal'] %}is-active{% endif %}">DW Deployment</a>
+        <a href="{{ url_for('deploy_dws_client') }}" class="nav-item nav-subitem {% if page == 'deploy_dws_client' %}is-active{% endif %}">Client</a>
+        <a href="{{ url_for('deploy_dws_internal') }}" class="nav-item nav-subitem {% if page == 'deploy_dws_internal' %}is-active{% endif %}">Internal</a>
       </nav>
       {% if current_user %}
       <div class="sidebar-user">
@@ -73,11 +78,11 @@
 
         <nav class="home-quicklinks" aria-label="Jump to workspace">
           <a class="home-quicklink" href="{{ url_for('changes') }}">
-            <span class="home-quicklink-title">Preview changes</span>
+            <span class="home-quicklink-title">Review Updates</span>
             <span class="home-quicklink-desc">See exactly what's changing in the next deploy.</span>
           </a>
           <a class="home-quicklink" href="{{ url_for('mail_page') }}">
-            <span class="home-quicklink-title">Preview email &amp; send</span>
+            <span class="home-quicklink-title">Communication</span>
             <span class="home-quicklink-desc">Review the final email draft before notifying the team.</span>
           </a>
         </nav>
@@ -158,13 +163,22 @@
         {% endif %}
       {% endif %}
 
-      {% if page == 'deploy_dws' %}
+      {% if page in ['deploy_dws', 'deploy_dws_client', 'deploy_dws_internal'] %}
         <section class="dws-placeholder" aria-labelledby="dws-placeholder-heading">
           <h1 class="dws-placeholder-title" id="dws-placeholder-heading">Coming Soon</h1>
           <p class="dws-placeholder-note">Page currently under construction...</p>
         </section>
       {% endif %}
     </main>
+    {% if page == 'home' %}
+    <footer class="app-footer" aria-label="Footer">
+      <p class="app-footer-copy">MobiLife Assistant &copy; 2026 Mobi Life. Internal Use Only.</p>
+      <p class="app-footer-links">
+        Support &amp; bug reports:
+        <a href="mailto:mobi-data@mobi.co.za">mobi-data@mobi.co.za</a>
+      </p>
+    </footer>
+    {% endif %}
   </div>
   <script>
     (function () {
@@ -174,20 +188,73 @@
       var shell = document.querySelector(".app-shell");
       var btn = document.getElementById("sidebar-toggle");
       var label = document.getElementById("sidebar-toggle-label");
-      var glyph = btn && btn.querySelector(".sidebar-toggle-glyph");
+      var isAnimating = false;
       function setCollapsed(collapsed) {
         shell.classList.toggle("is-sidebar-collapsed", collapsed);
         if (!btn) return;
         btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
         btn.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
         if (label) label.textContent = collapsed ? "Expand sidebar" : "Collapse sidebar";
-        if (glyph) glyph.textContent = collapsed ? ">>" : "<<";
       }
       if (btn) {
         btn.addEventListener("click", function () {
+          if (isAnimating) return;
+          isAnimating = true;
+          btn.disabled = true;
           setCollapsed(!shell.classList.contains("is-sidebar-collapsed"));
+          window.setTimeout(function () {
+            isAnimating = false;
+            btn.disabled = false;
+          }, 220);
         });
       }
+
+      var IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+      var idleTimer = null;
+      var internalNavigation = false;
+
+      function sendLogoutBeacon() {
+        try {
+          if (navigator.sendBeacon) {
+            var blob = new Blob([""], { type: "text/plain;charset=UTF-8" });
+            navigator.sendBeacon("{{ url_for('logout_beacon') }}", blob);
+            return;
+          }
+        } catch (e) {}
+        fetch("{{ url_for('logout_beacon') }}", { method: "POST", credentials: "same-origin", keepalive: true });
+      }
+
+      function startIdleTimer() {
+        if (idleTimer) {
+          window.clearTimeout(idleTimer);
+        }
+        idleTimer = window.setTimeout(function () {
+          sendLogoutBeacon();
+          window.location.href = "{{ url_for('login') }}?timeout=1";
+        }, IDLE_TIMEOUT_MS);
+      }
+
+      ["mousemove", "keydown", "click", "scroll", "touchstart"].forEach(function (evt) {
+        document.addEventListener(evt, startIdleTimer, { passive: true });
+      });
+      startIdleTimer();
+
+      document.addEventListener("click", function (e) {
+        var link = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+        if (!link) return;
+        var href = link.getAttribute("href") || "";
+        if (!href || href.startsWith("#") || href.startsWith("javascript:")) return;
+        internalNavigation = true;
+      });
+      document.addEventListener("submit", function () {
+        internalNavigation = true;
+      }, true);
+
+      window.addEventListener("beforeunload", function () {
+        if (!internalNavigation) {
+          sendLogoutBeacon();
+        }
+      });
     })();
   </script>
 </body>

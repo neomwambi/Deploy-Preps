@@ -4,48 +4,145 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MobiLife Deployment Assistant</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='branding/mobilife-bird.png') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
 </head>
 <body>
-  <main class="main-panel" style="max-width:560px;margin:48px auto;">
-    <header class="panel-header">
-      {% if page == 'signup' %}
-      <h1 class="panel-header-title">Create your account</h1>
-      <p class="panel-header-desc">Registration is only available for pre-approved email addresses.</p>
-      {% else %}
-      <h1 class="panel-header-title">Sign in</h1>
-      <p class="panel-header-desc">Use your assigned username and password.</p>
-      {% endif %}
-    </header>
+  <main class="auth-shell">
+    <section class="auth-card">
+      <div class="auth-brand">
+        <img src="{{ url_for('static', filename='branding/mobilife-bird.png') }}" alt="MobiLife emblem" class="auth-brand-bird" />
+        <h1 class="auth-brand-title">MobiLife Deployment Assistant</h1>
+        <p class="auth-brand-copy">Secure sign-in and role-based access for deployment reporting.</p>
+      </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="flash-wrap">
-          {% for category, message in messages %}
-            <div class="flash flash-{{ category }}">{{ message }}</div>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
+      <div class="auth-pane">
+        <header class="auth-header">
+          {% if page == 'signup' %}
+          <h2 class="auth-title">Create your account</h2>
+          <p class="auth-subtitle">Registration is available only for pre-approved work email addresses.</p>
+          {% else %}
+          <h2 class="auth-title">Sign in</h2>
+          <p class="auth-subtitle">Use your assigned username or email and password.</p>
+          {% endif %}
+        </header>
 
-    {% if page == 'signup' %}
-    <form method="post" action="{{ url_for('signup') }}" class="guide-prose">
-      <p><label>Email<br /><input type="email" name="email" required style="width:100%;" /></label></p>
-      <p><label>First Name<br /><input type="text" name="first_name" required style="width:100%;" /></label></p>
-      <p><label>Last Name<br /><input type="text" name="last_name" required style="width:100%;" /></label></p>
-      <p><label>Password<br /><input type="password" name="password" required style="width:100%;" /></label></p>
-      <p><label>Confirm Password<br /><input type="password" name="confirm_password" required style="width:100%;" /></label></p>
-      <p><button type="submit" class="btn btn-primary">Sign up</button></p>
-      <p class="hint">Already registered? <a href="{{ url_for('login') }}">Sign in</a>.</p>
-    </form>
-    {% else %}
-    <form method="post" action="{{ url_for('login') }}" class="guide-prose">
-      <p><label>Username<br /><input type="text" name="username" required style="width:100%;" /></label></p>
-      <p><label>Password<br /><input type="password" name="password" required style="width:100%;" /></label></p>
-      <p><button type="submit" class="btn btn-primary">Log in</button></p>
-      <p class="hint">Need an account? <a href="{{ url_for('signup') }}">Sign up</a>.</p>
-    </form>
-    {% endif %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-wrap">
+              {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% if page == 'signup' %}
+        <form method="post" action="{{ url_for('signup') }}" class="auth-form">
+          <p class="auth-notice">Use your MobiLife work email address to sign up.</p>
+          <label class="auth-label">Email
+            <input class="auth-input" type="email" name="email" required />
+          </label>
+          <div class="auth-grid">
+            <label class="auth-label">First Name
+              <input class="auth-input" type="text" name="first_name" required />
+            </label>
+            <label class="auth-label">Last Name
+              <input class="auth-input" type="text" name="last_name" required />
+            </label>
+          </div>
+          <label class="auth-label">Password
+            <div class="auth-password-wrap">
+              <input class="auth-input" type="password" name="password" id="signup-password" required />
+              <button type="button" class="auth-password-toggle" data-target="signup-password" aria-label="Show password" title="Show password">
+                <svg class="auth-eye auth-eye-show" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12s-3.8 6.5-10.5 6.5S1.5 12 1.5 12Z"></path>
+                  <circle cx="12" cy="12" r="3.2"></circle>
+                </svg>
+                <svg class="auth-eye auth-eye-hide" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2.5 12s3.2-5.5 9.5-6.3c3.2-.4 6 1 8.3 3.3"></path>
+                  <path d="M21.5 12s-3.2 5.5-9.5 6.3c-3.2.4-6-1-8.3-3.3"></path>
+                  <circle cx="12" cy="12" r="3.2"></circle>
+                  <path d="M3 3l18 18"></path>
+                </svg>
+              </button>
+            </div>
+          </label>
+          <label class="auth-label">Confirm Password
+            <div class="auth-password-wrap">
+              <input class="auth-input" type="password" name="confirm_password" id="signup-confirm-password" required />
+              <button type="button" class="auth-password-toggle" data-target="signup-confirm-password" aria-label="Show password" title="Show password">
+                <svg class="auth-eye auth-eye-show" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12s-3.8 6.5-10.5 6.5S1.5 12 1.5 12Z"></path>
+                  <circle cx="12" cy="12" r="3.2"></circle>
+                </svg>
+                <svg class="auth-eye auth-eye-hide" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2.5 12s3.2-5.5 9.5-6.3c3.2-.4 6 1 8.3 3.3"></path>
+                  <path d="M21.5 12s-3.2 5.5-9.5 6.3c-3.2.4-6-1-8.3-3.3"></path>
+                  <circle cx="12" cy="12" r="3.2"></circle>
+                  <path d="M3 3l18 18"></path>
+                </svg>
+              </button>
+            </div>
+          </label>
+          <button type="submit" class="btn btn-primary auth-submit">Sign up</button>
+          <p class="auth-switch">Already registered? <a href="{{ url_for('login') }}">Sign in</a>.</p>
+        </form>
+        {% else %}
+        <form method="post" action="{{ url_for('login') }}" class="auth-form">
+          <label class="auth-label">Username or Email
+            <input class="auth-input" type="text" name="username" required />
+          </label>
+          <label class="auth-label">Password
+            <div class="auth-password-wrap">
+              <input class="auth-input" type="password" name="password" id="login-password" required />
+              <button type="button" class="auth-password-toggle" data-target="login-password" aria-label="Show password" title="Show password">
+                <svg class="auth-eye auth-eye-show" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12s-3.8 6.5-10.5 6.5S1.5 12 1.5 12Z"></path>
+                  <circle cx="12" cy="12" r="3.2"></circle>
+                </svg>
+                <svg class="auth-eye auth-eye-hide" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2.5 12s3.2-5.5 9.5-6.3c3.2-.4 6 1 8.3 3.3"></path>
+                  <path d="M21.5 12s-3.2 5.5-9.5 6.3c-3.2.4-6-1-8.3-3.3"></path>
+                  <circle cx="12" cy="12" r="3.2"></circle>
+                  <path d="M3 3l18 18"></path>
+                </svg>
+              </button>
+            </div>
+          </label>
+          <button type="submit" class="btn btn-primary auth-submit">Log in</button>
+          <p class="auth-switch">Need an account? <a href="{{ url_for('signup') }}">Sign up</a>.</p>
+        </form>
+        {% endif %}
+      </div>
+    </section>
   </main>
+  <script>
+    (function () {
+      var toggles = document.querySelectorAll(".auth-password-toggle");
+      function syncToggleVisibility(input, btn) {
+        btn.classList.toggle("is-visible", input.value.length > 0);
+      }
+      toggles.forEach(function (btn) {
+        var targetId = btn.getAttribute("data-target");
+        if (!targetId) return;
+        var input = document.getElementById(targetId);
+        if (!input) return;
+
+        syncToggleVisibility(input, btn);
+        input.addEventListener("input", function () {
+          syncToggleVisibility(input, btn);
+        });
+
+        btn.addEventListener("click", function () {
+          var isPassword = input.type === "password";
+          input.type = isPassword ? "text" : "password";
+          btn.classList.toggle("is-revealed", isPassword);
+          btn.setAttribute("aria-label", isPassword ? "Hide password" : "Show password");
+          btn.setAttribute("title", isPassword ? "Hide password" : "Show password");
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
