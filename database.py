@@ -12,6 +12,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _require_plain_env(key: str) -> str:
+    """
+    Return an app setting value. Key Vault references must be resolved by Azure
+    before the process starts; if the literal @Microsoft.KeyVault(...) string is
+    still present, MySQL would treat it as a hostname and fail with a cryptic error.
+    """
+    if key not in os.environ:
+        raise KeyError(key)
+    v = os.environ[key].strip()
+    if v.startswith("@Microsoft.KeyVault"):
+        raise RuntimeError(
+            f"App setting {key!r} is still an unresolved Key Vault reference (Azure did not inject the secret).\n\n"
+            "Fix: Web App → Identity → enable System-assigned managed identity → Save. "
+            "Key vault deployprep → Access control (IAM) → Add role assignment → "
+            "role “Key Vault Secrets User” → assign to this Web App’s managed identity → "
+            "Restart the Web App.\n\n"
+            f"Workaround: set {key!r} to the real hostname, user, or password as a plain Application setting (not a @Microsoft.KeyVault reference)."
+        )
+    return v
+
+
 PREPROD_SQL = """
 SELECT
     CONCAT(
@@ -88,12 +110,26 @@ def _read_frame(conn: MySQLConnection, sql: str) -> pd.DataFrame:
     return pd.read_sql(sql, conn)
 
 
+def _db_port(env_name: str) -> int:
+    """
+    MySQL port from env. If unset, non-numeric, or still an unresolved Key Vault
+    reference string, default to 3306.
+    """
+    raw = (os.environ.get(env_name) or "3306").strip()
+    if not raw or raw.startswith("@Microsoft.KeyVault"):
+        return 3306
+    try:
+        return int(raw)
+    except ValueError:
+        return 3306
+
+
 def fetch_preprod_dataframe() -> pd.DataFrame:
     conn = _connect(
-        os.environ["PREPROD_DB_HOST"],
-        int(os.environ.get("PREPROD_DB_PORT", "3306")),
-        os.environ["PREPROD_DB_USER"],
-        os.environ["PREPROD_DB_PASSWORD"],
+        _require_plain_env("PREPROD_DB_HOST"),
+        _db_port("PREPROD_DB_PORT"),
+        _require_plain_env("PREPROD_DB_USER"),
+        _require_plain_env("PREPROD_DB_PASSWORD"),
     )
     try:
         return _read_frame(conn, PREPROD_SQL)
@@ -103,10 +139,10 @@ def fetch_preprod_dataframe() -> pd.DataFrame:
 
 def fetch_prod_dataframe() -> pd.DataFrame:
     conn = _connect(
-        os.environ["PROD_DB_HOST"],
-        int(os.environ.get("PROD_DB_PORT", "3306")),
-        os.environ["PROD_DB_USER"],
-        os.environ["PROD_DB_PASSWORD"],
+        _require_plain_env("PROD_DB_HOST"),
+        _db_port("PROD_DB_PORT"),
+        _require_plain_env("PROD_DB_USER"),
+        _require_plain_env("PROD_DB_PASSWORD"),
     )
     try:
         return _read_frame(conn, PROD_SQL)
@@ -117,3 +153,98 @@ def fetch_prod_dataframe() -> pd.DataFrame:
 def fetch_both() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return (preprod_df, prod_df)."""
     return fetch_preprod_dataframe(), fetch_prod_dataframe()
+
+
+def _connect_oasis_preprod() -> MySQLConnection:
+    """Connection for authentication table routing (oasis_preprod)."""
+    return _connect(
+        _require_plain_env("PREPROD_DB_HOST"),
+        _db_port("PREPROD_DB_PORT"),
+        _require_plain_env("PREPROD_DB_USER"),
+        _require_plain_env("PREPROD_DB_PASSWORD"),
+        database="oasis_preprod",
+    )
+
+
+def lookup_signup_candidate(email: str) -> dict[str, Any] | None:
+    """
+    Return pre-approved user row for signup only if FirstName is NULL.
+    """
+    sql = """
+        SELECT `Id`, `EmailAddress`
+        FROM `xcl_deploypreps_users`
+        WHERE `EmailAddress` = %s
+          AND `FirstName` IS NULL
+        LIMIT 1
+    """
+    conn = _connect_oasis_preprod()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(sql, (email,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def username_exists(username: str) -> bool:
+    sql = "SELECT 1 FROM `xcl_deploypreps_users` WHERE `UserName` = %s LIMIT 1"
+    conn = _connect_oasis_preprod()
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, (username,))
+        return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def complete_signup(
+    email: str,
+    first_name: str,
+    last_name: str,
+    username: str,
+    password_hash: str,
+) -> bool:
+    """
+    Finalize signup only for pre-approved rows (FirstName IS NULL).
+    """
+    sql = """
+        UPDATE `xcl_deploypreps_users`
+        SET `FirstName` = %s,
+            `LastName` = %s,
+            `UserName` = %s,
+            `PasswordHash` = %s
+        WHERE `EmailAddress` = %s
+          AND `FirstName` IS NULL
+    """
+    conn = _connect_oasis_preprod()
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, (first_name, last_name, username, password_hash, email))
+        conn.commit()
+        return cur.rowcount == 1
+    finally:
+        conn.close()
+
+
+def lookup_login_user(username: str) -> dict[str, Any] | None:
+    sql = """
+        SELECT `Id`, `UserName`, `EmailAddress`, `PasswordHash`, `Access`
+        FROM `xcl_deploypreps_users`
+        WHERE (
+                LOWER(TRIM(`UserName`)) = LOWER(TRIM(%s))
+             OR LOWER(TRIM(`EmailAddress`)) = LOWER(TRIM(%s))
+        )
+          AND `PasswordHash` IS NOT NULL
+          AND TRIM(`PasswordHash`) <> ''
+        ORDER BY `Id` DESC
+        LIMIT 1
+    """
+    conn = _connect_oasis_preprod()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(sql, (username, username))
+        row = cur.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
