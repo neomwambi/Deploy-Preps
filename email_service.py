@@ -29,7 +29,16 @@ def default_mobilife_deploy_subject() -> str:
     return f"Database Changes - {d.strftime('%Y%m%d')} MobiLife Deploy"
 
 
-def send_report_email(html_body: str, subject: str | None = None) -> None:
+def change_script_filename() -> str:
+    d = deploy_scheduled_tuesday()
+    return f"Database_Changes_{d.strftime('%Y%m%d')}_MobiLife.txt"
+
+
+def send_report_email(
+    html_body: str,
+    subject: str | None = None,
+    text_attachments: list[tuple[str, str]] | None = None,
+) -> None:
     host = os.environ["SMTP_HOST"]
     port = int(os.environ.get("SMTP_PORT", "587"))
     user = os.environ.get("SMTP_USER", "")
@@ -65,6 +74,13 @@ def send_report_email(html_body: str, subject: str | None = None) -> None:
         image.add_header("Content-ID", f"<{SIGNATURE_BANNER_CID}>")
         image.add_header("Content-Disposition", "inline", filename=path.name)
         msg_root.attach(image)
+
+    for filename, content in text_attachments or []:
+        if not (content or "").strip():
+            continue
+        part = MIMEText(content, "plain", "utf-8")
+        part.add_header("Content-Disposition", "attachment", filename=filename)
+        msg_root.attach(part)
 
     recipients = [addr.strip() for addr in mail_to.split(",") if addr.strip()]
     if cc_raw:

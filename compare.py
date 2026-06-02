@@ -43,6 +43,71 @@ class SchemaDiffResult:
     preprod_row_count: int
     prod_row_count: int
     error: str | None = None
+    change_script: str = ""
+
+
+def _build_change_script(
+    new_columns: list[dict[str, str]],
+    indexes: list[dict[str, Any]],
+    dtype_changes: list[dict[str, str]],
+) -> str:
+    """Draft MySQL DDL for added columns, indexes, and data type changes (no CREATE TABLE)."""
+    if not new_columns and not indexes and not dtype_changes:
+        return ""
+
+    lines: list[str] = [
+        "-- MySQL change script (Preprod vs Prod) - review before running.",
+        "-- Excludes CREATE TABLE statements for brand-new tables.",
+        "",
+        "/* ===== New Columns ===== */",
+        "",
+    ]
+    def prod_db_name(name: str) -> str:
+        db = norm_str(name)
+        if not db:
+            return db
+        return db if db.lower().endswith("_prod") else f"{db}_prod"
+
+    if new_columns:
+        for c in sorted(new_columns, key=lambda x: (x["database"], x["table"], x["column"])):
+            lines.append(f"ALTER TABLE {prod_db_name(c['database'])}.{c['table']}")
+            lines.append(f"ADD {c['column']} {c['type']};")
+            lines.append("")
+    else:
+        lines.append("-- (none)")
+        lines.append("")
+
+    lines.append("/* ===== Indexes ===== */")
+    lines.append("")
+    if indexes:
+        seen_index_keys: set[tuple[str, str, str]] = set()
+        for ix in sorted(indexes, key=lambda x: (x["database"], x["table"], x["column"])):
+            key = (ix["database"], ix["table"], ix["column"])
+            if key in seen_index_keys:
+                continue
+            seen_index_keys.add(key)
+            idx_name = f"{ix['table']}_{ix['column']}"
+            prefix = "create unique index" if bool(ix.get("unique")) else "create index"
+            lines.append(
+                f"{prefix} {idx_name} on {prod_db_name(ix['database'])}.{ix['table']}({ix['column']});"
+            )
+            lines.append("")
+    else:
+        lines.append("-- (none)")
+        lines.append("")
+
+    lines.append("/* ===== Data Type Changes ===== */")
+    lines.append("")
+    if dtype_changes:
+        for d in sorted(dtype_changes, key=lambda x: (x["database"], x["table"], x["column"])):
+            lines.append(f"ALTER TABLE {prod_db_name(d['database'])}.{d['table']}")
+            lines.append(f"MODIFY {d['column']} {d['type']};")
+            lines.append("")
+    else:
+        lines.append("-- (none)")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _table_stats_for(
@@ -154,6 +219,8 @@ def compute_schema_diff(pre: pd.DataFrame, prod: pd.DataFrame) -> SchemaDiffResu
 
     new_columns_by_table: dict[tuple[str, str], list[str]] = {}
     removed_columns_by_table: dict[tuple[str, str], list[str]] = {}
+    new_columns_detail: list[dict[str, str]] = []
+    index_detail: list[dict[str, Any]] = []
 
     for k in new_keys:
         row = pre.loc[pre[KEY_COL].map(norm_str) == k].head(1)
@@ -163,7 +230,24 @@ def compute_schema_diff(pre: pd.DataFrame, prod: pd.DataFrame) -> SchemaDiffResu
         tbl = norm_str(row.iloc[0]["table_name"])
         if (db, tbl) in new_tables_set:
             continue
-        new_columns_by_table.setdefault((db, tbl), []).append(norm_str(row.iloc[0]["preprod_column_name"]))
+        colname = norm_str(row.iloc[0]["preprod_column_name"])
+        coltype = norm_str(row.iloc[0]["preprod_column_type"])
+        col_key = norm_str(row.iloc[0]["preprod_column_key"])
+        new_columns_by_table.setdefault((db, tbl), []).append(colname)
+        if not _is_blank(colname):
+            new_columns_detail.append(
+                {"database": db, "table": tbl, "column": colname, "type": coltype}
+            )
+            # A brand-new column that also carries a secondary index key needs its own index.
+            if col_key.upper() in {"MUL", "UNI"}:
+                index_detail.append(
+                    {
+                        "database": db,
+                        "table": tbl,
+                        "column": colname,
+                        "unique": col_key.upper() == "UNI",
+                    }
+                )
 
     for k in removed_keys:
         row = prod.loc[prod[KEY_COL].map(norm_str) == k].head(1)
@@ -243,21 +327,32 @@ def compute_schema_diff(pre: pd.DataFrame, prod: pd.DataFrame) -> SchemaDiffResu
                 "prod_table_size_gb": size,
             }
         )
+        if not _is_blank(colname):
+            index_detail.append(
+                {"database": db_name, "table": tbl_name, "column": colname, "unique": prep_k.upper() == "UNI"}
+            )
 
     dtype_rows: list[dict[str, Any]] = []
+    dtype_detail: list[dict[str, str]] = []
     for _, r in dtype_changes.iterrows():
         db_name = norm_str(r.get("database_name", ""))
         tbl_name = norm_str(r.get("table_name", ""))
         _, size = _table_stats_for(prod, pre, db_name, tbl_name)
+        dcolumn = norm_str(r.get("preprod_column_name", r.get("prod_column_name", "")))
+        dtype = norm_str(r.get("preprod_column_type", ""))
         dtype_rows.append(
             {
                 "table_name": tbl_name,
                 "database": db_name,
-                "column": norm_str(r.get("preprod_column_name", r.get("prod_column_name", ""))),
-                "new_datatype_length": norm_str(r.get("preprod_column_type", "")),
+                "column": dcolumn,
+                "new_datatype_length": dtype,
                 "prod_table_size_gb": size,
             }
         )
+        if not _is_blank(dcolumn):
+            dtype_detail.append(
+                {"database": db_name, "table": tbl_name, "column": dcolumn, "type": dtype}
+            )
 
     t1 = pd.DataFrame(new_tables)
     if not t1.empty:
@@ -318,6 +413,8 @@ def compute_schema_diff(pre: pd.DataFrame, prod: pd.DataFrame) -> SchemaDiffResu
             columns=["Table Name", "Database", "Column", "New DataType / Length", "Prod Table Size (GB)"]
         )
 
+    change_script = _build_change_script(new_columns_detail, index_detail, dtype_detail)
+
     return SchemaDiffResult(
         table1_new_tables=t1,
         table2_field_changes=t2,
@@ -326,4 +423,5 @@ def compute_schema_diff(pre: pd.DataFrame, prod: pd.DataFrame) -> SchemaDiffResu
         preprod_row_count=len(pre),
         prod_row_count=len(prod),
         error=None,
+        change_script=change_script,
     )

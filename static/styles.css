@@ -679,6 +679,26 @@ body {
   background: #e8eaef;
 }
 
+.script-preview-panel {
+  margin-top: 18px;
+}
+
+.script-preview-block {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--ml-sidebar-border);
+  border-radius: var(--ml-radius);
+  background: #f8f9fb;
+  color: var(--ml-text);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: auto;
+  max-height: 420px;
+}
+
 .app-footer {
   margin-top: auto;
   padding: 14px 24px 18px;

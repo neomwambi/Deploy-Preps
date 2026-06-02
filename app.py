@@ -20,7 +20,7 @@ from database import (
     lookup_signup_candidate,
     username_exists,
 )
-from email_service import send_report_email
+from email_service import change_script_filename, send_report_email
 from html_report import render_report_email_html, render_report_html
 
 load_dotenv()
@@ -115,6 +115,8 @@ def _empty_dashboard_kwargs():
     return {
         "tables_html": None,
         "email_preview_html": None,
+        "change_script_preview": None,
+        "change_script_filename": None,
         "result_meta": None,
         "error": None,
     }
@@ -206,7 +208,11 @@ def mail_page():
 
         if action == "send":
             html_body = render_report_email_html(result, for_browser_preview=False)
-            send_report_email(html_body)
+            attachment_name = change_script_filename()
+            attachments = []
+            if result.change_script.strip():
+                attachments.append((attachment_name, result.change_script))
+            send_report_email(html_body, text_attachments=attachments)
             flash("Report email sent successfully.", "success")
             preview_html = render_report_email_html(result, for_browser_preview=True)
             return render_template(
@@ -214,6 +220,8 @@ def mail_page():
                 page="email",
                 tables_html=None,
                 email_preview_html=preview_html,
+                change_script_preview=result.change_script,
+                change_script_filename=attachment_name,
                 result_meta=meta,
                 error=None,
             )
@@ -225,6 +233,8 @@ def mail_page():
             page="email",
             tables_html=None,
             email_preview_html=preview_html,
+            change_script_preview=result.change_script,
+            change_script_filename=change_script_filename(),
             result_meta=meta,
             error=None,
         )

@@ -158,6 +158,17 @@
             <p class="panel-note">This is how the report will look when it reaches your recipients (including images and signature).</p>
             <iframe class="email-iframe" title="Report preview" srcdoc="{{ email_preview_html | e }}"></iframe>
           </section>
+          <section class="script-preview-panel" aria-labelledby="script-preview-heading">
+            <h2 class="panel-title" id="script-preview-heading">Attachment script preview</h2>
+            {% if change_script_filename %}
+              <p class="panel-note">The attached file will be sent as <code>{{ change_script_filename }}</code>.</p>
+            {% endif %}
+            {% if change_script_preview and change_script_preview.strip() %}
+              <pre class="script-preview-block">{{ change_script_preview }}</pre>
+            {% else %}
+              <p class="hint">No column, index, or data type scripts are required for this snapshot.</p>
+            {% endif %}
+          </section>
         {% elif not error %}
           <p class="hint">Click <strong>Load Preview</strong> to see the formatted message below. Once you are happy with it, click <strong>Send to Team</strong>.</p>
         {% endif %}

@@ -35,3 +35,6 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+
+# Local-only notes
+RUN_LOCAL.txt
