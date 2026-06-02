@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 import time
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from dotenv import load_dotenv
 from flask import Flask, flash, redirect, render_template, request, session, url_for
@@ -56,11 +57,32 @@ def _inject_current_user():
             "username": session.get("username"),
             "access": session.get("access"),
         } if _is_logged_in() else None,
+        "last_updated": project_last_updated(),
     }
 
 
 def _build_username(first_name: str, last_name: str) -> str:
     return f"{first_name}_{last_name[0].upper()}"
+
+
+# Local time zone for display (South Africa Standard Time, UTC+2).
+_DISPLAY_TZ = timezone(timedelta(hours=2), "SAST")
+_PROJECT_ROOT = Path(__file__).resolve().parent
+_LAST_UPDATED_SOURCES = ("*.py", "templates/*.html", "static/*.css")
+
+
+def project_last_updated() -> str | None:
+    """Most recent modification time across the app's source files, formatted for display."""
+    latest = 0.0
+    for pattern in _LAST_UPDATED_SOURCES:
+        for path in _PROJECT_ROOT.glob(pattern):
+            try:
+                latest = max(latest, path.stat().st_mtime)
+            except OSError:
+                continue
+    if latest <= 0:
+        return None
+    return datetime.fromtimestamp(latest, _DISPLAY_TZ).strftime("%d %b %Y, %H:%M (%Z)")
 
 
 def _touch_session_activity() -> None:

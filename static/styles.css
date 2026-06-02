@@ -705,6 +705,12 @@ body {
   text-underline-offset: 2px;
 }
 
+.app-footer-updated {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  color: var(--ml-muted);
+}
+
 /* Auth pages */
 .auth-shell {
   min-height: 100vh;

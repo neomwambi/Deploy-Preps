@@ -177,6 +177,9 @@
         Support &amp; bug reports:
         <a href="mailto:mobi-data@mobi.co.za">mobi-data@mobi.co.za</a>
       </p>
+      {% if last_updated %}
+      <p class="app-footer-updated">Last updated: {{ last_updated }}</p>
+      {% endif %}
     </footer>
     {% endif %}
   </div>
