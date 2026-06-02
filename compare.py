@@ -232,22 +232,30 @@ def compute_schema_diff(pre: pd.DataFrame, prod: pd.DataFrame) -> SchemaDiffResu
             label = f"{colname} → {prep_k}"
         else:
             label = f"{colname}: {prod_k} → {prep_k}"
+        db_name = norm_str(r.get("database_name", ""))
+        tbl_name = norm_str(r.get("table_name", ""))
+        _, size = _table_stats_for(prod, pre, db_name, tbl_name)
         index_rows.append(
             {
-                "table_name": norm_str(r.get("table_name", "")),
-                "database": norm_str(r.get("database_name", "")),
+                "table_name": tbl_name,
+                "database": db_name,
                 "index_added": label,
+                "prod_table_size_gb": size,
             }
         )
 
     dtype_rows: list[dict[str, Any]] = []
     for _, r in dtype_changes.iterrows():
+        db_name = norm_str(r.get("database_name", ""))
+        tbl_name = norm_str(r.get("table_name", ""))
+        _, size = _table_stats_for(prod, pre, db_name, tbl_name)
         dtype_rows.append(
             {
-                "table_name": norm_str(r.get("table_name", "")),
-                "database": norm_str(r.get("database_name", "")),
+                "table_name": tbl_name,
+                "database": db_name,
                 "column": norm_str(r.get("preprod_column_name", r.get("prod_column_name", ""))),
                 "new_datatype_length": norm_str(r.get("preprod_column_type", "")),
+                "prod_table_size_gb": size,
             }
         )
 
@@ -288,10 +296,11 @@ def compute_schema_diff(pre: pd.DataFrame, prod: pd.DataFrame) -> SchemaDiffResu
                 "table_name": "Table Name",
                 "database": "Database",
                 "index_added": "Index Added",
+                "prod_table_size_gb": "Prod Table Size (GB)",
             }
         )
     else:
-        t3 = pd.DataFrame(columns=["Table Name", "Database", "Index Added"])
+        t3 = pd.DataFrame(columns=["Table Name", "Database", "Index Added", "Prod Table Size (GB)"])
 
     t4 = pd.DataFrame(dtype_rows)
     if not t4.empty:
@@ -301,10 +310,13 @@ def compute_schema_diff(pre: pd.DataFrame, prod: pd.DataFrame) -> SchemaDiffResu
                 "database": "Database",
                 "column": "Column",
                 "new_datatype_length": "New DataType / Length",
+                "prod_table_size_gb": "Prod Table Size (GB)",
             }
         )
     else:
-        t4 = pd.DataFrame(columns=["Table Name", "Database", "Column", "New DataType / Length"])
+        t4 = pd.DataFrame(
+            columns=["Table Name", "Database", "Column", "New DataType / Length", "Prod Table Size (GB)"]
+        )
 
     return SchemaDiffResult(
         table1_new_tables=t1,
