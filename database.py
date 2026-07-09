@@ -58,6 +58,9 @@ LEFT JOIN information_schema.tables t
 WHERE c.TABLE_SCHEMA LIKE '%preprod'
     AND c.TABLE_SCHEMA NOT LIKE 'dmz%%'
     AND c.TABLE_NAME NOT LIKE '%%Xcl_%%'
+    AND c.TABLE_NAME NOT REGEXP '^[0-9]'
+    AND c.TABLE_NAME NOT REGEXP '[0-9]$'
+    AND c.TABLE_NAME NOT LIKE 'generic%%view'
 """
 
 PROD_SQL = """
@@ -85,6 +88,57 @@ WHERE RIGHT(c.TABLE_SCHEMA, 4) = 'prod'
     AND c.TABLE_NAME NOT LIKE '%%Xcl%%'
     AND c.TABLE_NAME NOT LIKE '%%view2026%%'
     AND c.TABLE_NAME NOT LIKE '%%view2025%%'
+    AND c.TABLE_NAME NOT REGEXP '^[0-9]'
+    AND c.TABLE_NAME NOT REGEXP '[0-9]$'
+    AND c.TABLE_NAME NOT LIKE 'generic%%view'
+"""
+
+# --- DMZ environment comparison (dmz_preprod on the preprod server vs
+# mobility_dmz_prod on a separate server). Both are single schemas, so we use a
+# fixed key prefix and a fixed database_name so their tables/columns align during
+# the comparison and the generated ALTER scripts target 'mobility_dmz_prod'. ---
+DMZ_PREPROD_SQL = """
+SELECT
+    CONCAT('mobility_dmz_prod', '_', c.TABLE_NAME, '-', c.COLUMN_NAME) AS database_tablename_columnname,
+    c.COLUMN_NAME AS preprod_column_name,
+    c.COLUMN_TYPE AS preprod_column_type,
+    c.COLUMN_KEY AS preprod_column_key,
+    c.COLLATION_NAME AS preprod_collation_name,
+    'mobility_dmz_prod' AS database_name,
+    c.TABLE_NAME AS table_name,
+    t.TABLE_ROWS AS table_rows,
+    ROUND((t.DATA_LENGTH + t.INDEX_LENGTH) / (1024 * 1024 * 1024), 10) AS size_gb
+FROM information_schema.columns c
+LEFT JOIN information_schema.tables t
+    ON t.TABLE_SCHEMA = c.TABLE_SCHEMA
+    AND t.TABLE_NAME = c.TABLE_NAME
+WHERE c.TABLE_SCHEMA = 'dmz_preprod'
+    AND c.TABLE_NAME NOT LIKE '%%Xcl%%'
+    AND c.TABLE_NAME NOT REGEXP '^[0-9]'
+    AND c.TABLE_NAME NOT REGEXP '[0-9]$'
+    AND c.TABLE_NAME NOT LIKE 'generic%%view'
+"""
+
+DMZ_PROD_SQL = """
+SELECT
+    CONCAT('mobility_dmz_prod', '_', c.TABLE_NAME, '-', c.COLUMN_NAME) AS database_tablename_columnname,
+    c.COLUMN_NAME AS prod_column_name,
+    c.COLUMN_TYPE AS prod_column_type,
+    c.COLUMN_KEY AS prod_column_key,
+    c.COLLATION_NAME AS prod_collation_name,
+    'mobility_dmz_prod' AS database_name,
+    c.TABLE_NAME AS table_name,
+    t.TABLE_ROWS AS table_rows,
+    ROUND((t.DATA_LENGTH + t.INDEX_LENGTH) / (1024 * 1024 * 1024), 10) AS size_gb
+FROM information_schema.columns c
+LEFT JOIN information_schema.tables t
+    ON t.TABLE_SCHEMA = c.TABLE_SCHEMA
+    AND t.TABLE_NAME = c.TABLE_NAME
+WHERE c.TABLE_SCHEMA = 'mobility_dmz_prod'
+    AND c.TABLE_NAME NOT LIKE '%%Xcl%%'
+    AND c.TABLE_NAME NOT REGEXP '^[0-9]'
+    AND c.TABLE_NAME NOT REGEXP '[0-9]$'
+    AND c.TABLE_NAME NOT LIKE 'generic%%view'
 """
 
 
@@ -153,6 +207,39 @@ def fetch_prod_dataframe() -> pd.DataFrame:
 def fetch_both() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return (preprod_df, prod_df)."""
     return fetch_preprod_dataframe(), fetch_prod_dataframe()
+
+
+def fetch_dmz_preprod_dataframe() -> pd.DataFrame:
+    # dmz_preprod lives on the existing preprod server, so reuse the PREPROD_* creds.
+    conn = _connect(
+        _require_plain_env("PREPROD_DB_HOST"),
+        _db_port("PREPROD_DB_PORT"),
+        _require_plain_env("PREPROD_DB_USER"),
+        _require_plain_env("PREPROD_DB_PASSWORD"),
+    )
+    try:
+        return _read_frame(conn, DMZ_PREPROD_SQL)
+    finally:
+        conn.close()
+
+
+def fetch_dmz_prod_dataframe() -> pd.DataFrame:
+    # mobility_dmz_prod lives on a separate server, so it uses its own DMZ_PROD_* creds.
+    conn = _connect(
+        _require_plain_env("DMZ_PROD_DB_HOST"),
+        _db_port("DMZ_PROD_DB_PORT"),
+        _require_plain_env("DMZ_PROD_DB_USER"),
+        _require_plain_env("DMZ_PROD_DB_PASSWORD"),
+    )
+    try:
+        return _read_frame(conn, DMZ_PROD_SQL)
+    finally:
+        conn.close()
+
+
+def fetch_dmz_both() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return (dmz_preprod_df, mobility_dmz_prod_df)."""
+    return fetch_dmz_preprod_dataframe(), fetch_dmz_prod_dataframe()
 
 
 def _connect_oasis_preprod() -> MySQLConnection:

@@ -82,6 +82,8 @@ h1 { font-size: medium; font-weight: bold; margin: 0 0 8px; text-align: left; fo
 .sub { color: #5c6470; margin: 0 0 20px; font-size: medium; text-align: left; font-family: inherit; }
 .section { margin-top: 26px; text-align: left; width: 100%; max-width: 100%; font-family: inherit; font-size: medium; }
 .section h2 { font-size: medium; font-weight: bold; margin: 0 0 10px; text-align: left; font-family: inherit; }
+.group-title { font-size: medium; font-weight: bold; margin: 30px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #8EA9DB; text-align: left; font-family: inherit; }
+.section-group { margin-top: 8px; }
 .diff-table-wrap { display: inline-block; max-width: 100%; vertical-align: top; }
 table.diff { width: auto !important; max-width: 100% !important; table-layout: fixed; border-collapse: collapse; background: #ffffff; border: 1px solid #000000; margin: 0; font-family: inherit; font-size: medium; font-weight: normal; box-shadow: none; border-radius: 0; }
 table.diff th, table.diff td { border: 1px solid #000000; padding: 2px 6px; color: #000000; vertical-align: middle; text-align: left; box-sizing: border-box; word-wrap: break-word; overflow-wrap: break-word; }
@@ -246,6 +248,40 @@ def render_report_html(result: SchemaDiffResult, include_document_wrapper: bool 
 </html>"""
 
 
+def _email_banner_src(for_browser_preview: bool) -> str | None:
+    # The in-app iframe preview needs a self-contained data: image; a real SMTP email
+    # references the inline image by its Content-ID (cid:). If no banner file exists,
+    # there is nothing to reference.
+    if for_browser_preview:
+        return signature_banner_data_uri()
+    if resolve_signature_banner_path() is not None:
+        return f"cid:{SIGNATURE_BANNER_CID}"
+    return None
+
+
+def _email_document(body_inner: str) -> str:
+    # Wrap the given inner HTML in the shared email document shell (styles + layout table).
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>{_DOCUMENT_STYLES}</style>
+</head>
+<body style="margin:0;padding:0;text-align:left;width:100%;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">
+<tr>
+<td align="left" valign="top" width="100%" style="padding:0;margin:0;text-align:left;width:100%;">
+  <div class="wrap" style="width:100%;max-width:100%;margin:0;padding:8px 12px 32px 0;text-align:left;box-sizing:border-box;">
+{body_inner}
+  </div>
+</td>
+</tr>
+</table>
+</body>
+</html>"""
+
+
 def render_report_email_html(
     result: SchemaDiffResult,
     *,
@@ -270,32 +306,53 @@ def render_report_email_html(
             "<p>Please see below the changes affecting the database after deployment.</p>"
         )
 
-    if for_browser_preview:
-        banner_src = signature_banner_data_uri()
-    elif resolve_signature_banner_path() is not None:
-        banner_src = f"cid:{SIGNATURE_BANNER_CID}"
-    else:
-        banner_src = None
+    signoff = _email_signoff_html(_email_banner_src(for_browser_preview))
+    return _email_document(f"{intro}\n{inner}\n{signoff}")
 
-    signoff = _email_signoff_html(banner_src)
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>{_DOCUMENT_STYLES}</style>
-</head>
-<body style="margin:0;padding:0;text-align:left;width:100%;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">
-<tr>
-<td align="left" valign="top" width="100%" style="padding:0;margin:0;text-align:left;width:100%;">
-  <div class="wrap" style="width:100%;max-width:100%;margin:0;padding:8px 12px 32px 0;text-align:left;box-sizing:border-box;">
-{intro}
-{inner}
-{signoff}
-  </div>
-</td>
-</tr>
-</table>
-</body>
-</html>"""
+
+def render_combined_report_email_html(
+    groups: list[tuple[str, SchemaDiffResult]],
+    *,
+    for_browser_preview: bool = False,
+) -> str:
+    """
+    Build a single email body that covers multiple environments.
+
+    ``groups`` is a list of (heading, diff-result) pairs, e.g.
+    [("Production Updates", prod_result), ("DMZ Updates", dmz_result)].
+    Each heading introduces that environment's change tables (or a "no changes" note).
+    """
+    # A fixed-height spacer placed before each group after the first, so the next
+    # environment heading is clearly separated from the previous group's tables.
+    # (Using an explicit spacer is more reliable than CSS margins across email clients.)
+    spacer = '<div style="height:28px;line-height:28px;font-size:0;">&nbsp;</div>'
+
+    any_changes = False
+    group_blocks: list[str] = []
+    for index, (group_title, result) in enumerate(groups):
+        sections = _iter_dynamic_sections(result)
+        if sections:
+            any_changes = True
+            inner = _render_sections_list(sections)
+        else:
+            inner = '<p class="empty">No database schema changes for this environment.</p>'
+        lead = spacer if index > 0 else ""
+        group_blocks.append(
+            f'{lead}<div class="section-group"><p class="group-title">{_esc(group_title)}</p>{inner}</div>'
+        )
+    body_inner = "\n".join(group_blocks)
+
+    # Intro wording depends on whether ANY environment had changes.
+    if any_changes:
+        intro = (
+            "<p>Good day all,</p>"
+            "<p>Please see below the changes affecting the databases after deployment.</p>"
+        )
+    else:
+        intro = (
+            "<p>Good day all,</p>"
+            "<p>There are <strong>no database schema changes</strong> to report for this deployment.</p>"
+        )
+
+    signoff = _email_signoff_html(_email_banner_src(for_browser_preview))
+    return _email_document(f"{intro}\n{body_inner}\n{signoff}")

@@ -27,7 +27,9 @@
       </div>
       <nav class="sidebar-nav" aria-label="Primary navigation">
         <a href="{{ url_for('home') }}" class="nav-item {% if page == 'home' %}is-active{% endif %}">Home</a>
-        <a href="{{ url_for('changes') }}" class="nav-item {% if page == 'changes' %}is-active{% endif %}">Review Updates</a>
+        <a href="{{ url_for('changes') }}" class="nav-item {% if page in ['changes', 'dmz'] %}is-active{% endif %}">Review Updates</a>
+        <a href="{{ url_for('changes') }}" class="nav-item nav-subitem {% if page == 'changes' %}is-active{% endif %}">Production Updates</a>
+        <a href="{{ url_for('dmz') }}" class="nav-item nav-subitem {% if page == 'dmz' %}is-active{% endif %}">DMZ Updates</a>
         <a href="{{ url_for('mail_page') }}" class="nav-item {% if page == 'email' %}is-active{% endif %}">Communication</a>
         <a href="{{ url_for('deploy_dws') }}" class="nav-item {% if page in ['deploy_dws', 'deploy_dws_client', 'deploy_dws_internal'] %}is-active{% endif %}">DW Deployment</a>
         <a href="{{ url_for('deploy_dws_client') }}" class="nav-item nav-subitem {% if page == 'deploy_dws_client' %}is-active{% endif %}">Client</a>
@@ -108,9 +110,16 @@
         </section>
       {% endif %}
 
+      {% if page in ['changes', 'dmz'] %}
+        <nav class="subtab-nav" aria-label="Switch update view">
+          <a href="{{ url_for('changes') }}" class="subtab {% if page == 'changes' %}is-active{% endif %}">Production Updates</a>
+          <a href="{{ url_for('dmz') }}" class="subtab {% if page == 'dmz' %}is-active{% endif %}">DMZ Updates</a>
+        </nav>
+      {% endif %}
+
       {% if page == 'changes' %}
         <header class="panel-header">
-          <h1 class="panel-header-title">Deployment Changes</h1>
+          <h1 class="panel-header-title">Production Updates</h1>
           <p class="panel-header-desc">Comparing the Preprod and Production environments to review exactly what will change in the next deploy.</p>
         </header>
         <div class="panel-actions">
@@ -131,10 +140,33 @@
         {% endif %}
       {% endif %}
 
+      {% if page == 'dmz' %}
+        <header class="panel-header">
+          <h1 class="panel-header-title">DMZ Updates</h1>
+          <p class="panel-header-desc">Comparing <strong>dmz_preprod</strong> against <strong>mobility_dmz_prod</strong> to review exactly what will change in the next deploy.</p>
+        </header>
+        <div class="panel-actions">
+          <form method="post" action="{{ url_for('dmz') }}">
+            <button type="submit" class="btn btn-primary">Scan for Updates</button>
+          </form>
+        </div>
+        {% if result_meta %}
+          <p class="meta">Scan complete. Comparing <strong>{{ "{:,}".format(result_meta.preprod_rows) }}</strong> dmz_preprod items against
+            <strong>{{ "{:,}".format(result_meta.prod_rows) }}</strong> mobility_dmz_prod items.</p>
+        {% endif %}
+        {% if tables_html %}
+          <section class="preview">
+            {{ tables_html | safe }}
+          </section>
+        {% elif not error %}
+          <p class="hint">Choose <strong>Scan for Updates</strong> to compare both DMZ environments and show what will change.</p>
+        {% endif %}
+      {% endif %}
+
       {% if page == 'email' %}
         <header class="panel-header">
           <h1 class="panel-header-title">Draft &amp; Send Report</h1>
-          <p class="panel-header-desc">Review exactly how the update report will look before sending it to the team.</p>
+          <p class="panel-header-desc">One combined report covering both Production (preprod &rarr; prod) and DMZ (dmz_preprod &rarr; mobility_dmz_prod). Review it before sending it to the team.</p>
         </header>
         <div class="panel-actions panel-actions-split">
           <form method="post" action="{{ url_for('mail_page') }}">
@@ -149,8 +181,10 @@
           {% endif %}
         </div>
         {% if result_meta %}
-          <p class="meta">Snapshot based on <strong>{{ "{:,}".format(result_meta.preprod_rows) }}</strong> preprod rows and
-            <strong>{{ "{:,}".format(result_meta.prod_rows) }}</strong> production rows.</p>
+          <p class="meta">Production: <strong>{{ "{:,}".format(result_meta.prod_preprod_rows) }}</strong> preprod vs
+            <strong>{{ "{:,}".format(result_meta.prod_prod_rows) }}</strong> prod rows.
+            DMZ: <strong>{{ "{:,}".format(result_meta.dmz_preprod_rows) }}</strong> dmz_preprod vs
+            <strong>{{ "{:,}".format(result_meta.dmz_prod_rows) }}</strong> mobility_dmz_prod rows.</p>
         {% endif %}
         {% if email_preview_html %}
           <section class="email-preview-panel" aria-labelledby="email-preview-heading">

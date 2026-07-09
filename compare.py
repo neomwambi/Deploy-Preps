@@ -110,6 +110,22 @@ def _build_change_script(
     return "\n".join(lines).rstrip() + "\n"
 
 
+def combine_change_scripts(parts: list[tuple[str, str]]) -> str:
+    """Merge several labelled change scripts into one, each under a banner heading.
+
+    ``parts`` is a list of (label, script_text). Empty scripts are skipped, so if no
+    environment has any changes the result is an empty string (meaning "no attachment").
+    """
+    nonempty = [(label, s) for label, s in parts if s and s.strip()]
+    if not nonempty:
+        return ""
+    blocks: list[str] = []
+    for label, script in nonempty:
+        rule = "-- " + ("=" * 66)
+        blocks.append(f"{rule}\n-- {label}\n{rule}\n\n{script.strip()}")
+    return "\n\n\n".join(blocks) + "\n"
+
+
 def _table_stats_for(
     prod: pd.DataFrame,
     pre: pd.DataFrame,

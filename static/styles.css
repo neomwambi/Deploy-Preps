@@ -488,6 +488,40 @@ body {
   max-width: 720px;
 }
 
+/* Segmented tab switcher used on the update pages (Production / DMZ) */
+.subtab-nav {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  padding: 4px;
+  background: var(--ml-sidebar);
+  border: 1px solid var(--ml-sidebar-border);
+  border-radius: 10px;
+}
+
+.subtab {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 7px;
+  text-decoration: none;
+  color: var(--ml-navy);
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.subtab:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.subtab.is-active {
+  background: var(--ml-white);
+  border-color: var(--ml-yellow);
+  box-shadow: var(--ml-shadow);
+}
+
 .panel-actions {
   margin-bottom: 20px;
 }
