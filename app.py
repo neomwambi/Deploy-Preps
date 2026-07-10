@@ -57,8 +57,9 @@ from database import (  # Functions that talk to the MySQL databases.
     lookup_signup_candidate,# Check whether an email is pre-approved to register.
     username_exists,        # Check whether a username is already taken.
 )
-from email_service import change_script_filename, send_report_email
+from email_service import change_script_filename, email_delivery_summary, send_report_email
 #   change_script_filename -> the name to use for the attached SQL script (.txt) file.
+#   email_delivery_summary -> subject + recipients the report would be sent to (shown on the page).
 #   send_report_email      -> actually send the report email via SMTP.
 from html_report import render_combined_report_email_html, render_report_html
 #   render_report_html               -> build the on-screen comparison tables.
@@ -129,6 +130,8 @@ def _inject_current_user():
             "access": session.get("access"),
         } if _is_logged_in() else None,
         "last_updated": project_last_updated(),  # Timestamp shown in the home-page footer.
+        # Subject + recipients the report email would use (shown on the Communication page).
+        "email_summary": email_delivery_summary(),
     }
 
 

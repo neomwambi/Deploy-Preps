@@ -168,6 +168,38 @@
           <h1 class="panel-header-title">Draft &amp; Send Report</h1>
           <p class="panel-header-desc">One combined report covering both Production (preprod &rarr; prod) and DMZ (dmz_preprod &rarr; mobility_dmz_prod). Review it before sending it to the team.</p>
         </header>
+        {% if email_summary %}
+          <section class="email-meta-card" aria-label="Email delivery details">
+            <p class="email-meta-row">
+              <span class="email-meta-label">Subject</span>
+              <span class="email-meta-value">{{ email_summary.subject }}</span>
+            </p>
+            <p class="email-meta-row">
+              <span class="email-meta-label">To</span>
+              <span class="email-meta-value">
+                {% if email_summary.to %}
+                  {% for addr in email_summary.to %}<span class="email-chip">{{ addr }}</span>{% endfor %}
+                {% else %}
+                  <em class="email-meta-empty">No recipients configured</em>
+                {% endif %}
+              </span>
+            </p>
+            {% if email_summary.cc %}
+            <p class="email-meta-row">
+              <span class="email-meta-label">Cc</span>
+              <span class="email-meta-value">
+                {% for addr in email_summary.cc %}<span class="email-chip">{{ addr }}</span>{% endfor %}
+              </span>
+            </p>
+            {% endif %}
+            {% if email_summary.from %}
+            <p class="email-meta-row">
+              <span class="email-meta-label">From</span>
+              <span class="email-meta-value">{{ email_summary.from }}</span>
+            </p>
+            {% endif %}
+          </section>
+        {% endif %}
         <div class="panel-actions panel-actions-split">
           <form method="post" action="{{ url_for('mail_page') }}">
             <input type="hidden" name="action" value="preview" />

@@ -34,6 +34,21 @@ def change_script_filename() -> str:
     return f"Database_Changes_{d.strftime('%Y%m%d')}_MobiLife.txt"
 
 
+def _split_addresses(raw: str) -> list[str]:
+    # Turn a comma-separated address string into a clean list (blanks removed).
+    return [addr.strip() for addr in (raw or "").split(",") if addr.strip()]
+
+
+def email_delivery_summary() -> dict:
+    """Subject, sender, and recipients the report email would use (for on-page display)."""
+    return {
+        "subject": default_mobilife_deploy_subject(),
+        "from": (os.environ.get("EMAIL_FROM") or "").strip(),
+        "to": _split_addresses(os.environ.get("EMAIL_TO", "")),
+        "cc": _split_addresses(os.environ.get("EMAIL_CC", "")),
+    }
+
+
 def send_report_email(
     html_body: str,
     subject: str | None = None,
